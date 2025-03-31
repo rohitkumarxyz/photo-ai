@@ -1,5 +1,5 @@
 import { fal } from "@fal-ai/client";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import {
   TrainModel,
   GenerateImage,
@@ -239,28 +239,50 @@ app.get("/pack/bulk", async (req, res) => {
   });
 });
 
-app.get("/image/bulk", authMiddleware, async (req, res) => {
-  const ids = req.query.ids as string[];
+app.get("/poll/images/:requestId", authMiddleware, (req: Request, res: Response) => {
+  const requestId = req.params.requestId;
+  prismaClient.outputImages
+    .findUnique({ where: { falAiRequestId: requestId } })
+    .then((imagesData) => {
+      if (!imagesData) return res.status(404).json({ message: "Image not found" });
+
+      switch (imagesData.status) {
+        case "Failed":
+          return res.status(404).json({ message: "Image failed" });
+
+        case "Pending":
+          return res.status(400).json({ message: "Pending" });
+
+        case "Generated":
+          return res.json({ images: imagesData });
+      }
+    })
+    .catch((error) => {
+      console.error("Error in /poll/images/:requestId:", error);
+      res.status(500).json({ message: "Internal server error" });
+    });
+});
+
+
+
+//get all old images of user with pagination
+app.get("/images/old", authMiddleware, async (req, res) => {
   const limit = (req.query.limit as string) ?? "100";
   const offset = (req.query.offset as string) ?? "0";
 
-  const imagesData = await prismaClient.outputImages.findMany({
+  const images = await prismaClient.outputImages.findMany({
     where: {
-      id: { in: ids },
-      userId: req.userId!,
-      status: {
-        not: "Failed",
-      },
+      userId: req.userId,
     },
     orderBy: {
       createdAt: "desc",
     },
-    skip: parseInt(offset),
     take: parseInt(limit),
+    skip: parseInt(offset),
   });
 
   res.json({
-    images: imagesData,
+    images,
   });
 });
 
@@ -275,6 +297,9 @@ app.get("/models", authMiddleware, async (req, res) => {
     models,
   });
 });
+
+
+
 
 app.post("/fal-ai/webhook/train", async (req, res) => {
   console.log("====================Received training webhook====================");
@@ -307,7 +332,7 @@ app.post("/fal-ai/webhook/train", async (req, res) => {
         trainingStatus: "Failed",
       },
     });
-    
+
     res.json({
       message: "Error recorded",
     });
@@ -408,7 +433,6 @@ app.post("/fal-ai/webhook/train", async (req, res) => {
 
 app.post("/fal-ai/webhook/image", async (req, res) => {
   console.log("fal-ai/webhook/image");
-  console.log(req.body);
   // update the status of the image in the DB
   const requestId = req.body.request_id;
 
@@ -482,6 +506,7 @@ app.get("/model/status/:modelId", authMiddleware, async (req, res) => {
     return;
   }
 });
+
 
 app.use("/payment", paymentRoutes);
 app.use("/api/webhook", webhookRouter);

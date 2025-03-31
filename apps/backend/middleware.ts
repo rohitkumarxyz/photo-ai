@@ -42,12 +42,15 @@ export async function authMiddleware(
     // Format the public key properly
     const formattedKey = publicKey.replace(/\\n/g, "\n");
 
+    console.log("Formatted key:", formattedKey);
+
     const decoded = jwt.verify(token, formattedKey, {
       algorithms: ["RS256"],
       issuer:
         process.env.CLERK_ISSUER || "https://clerk.100xdevs.com",
       complete: true,
     });
+
 
     console.log("Decoded token:", decoded);
 
@@ -59,6 +62,7 @@ export async function authMiddleware(
       res.status(403).json({ message: "Invalid token payload" });
       return;
     }
+
 
     // Fetch user details from Clerk
     const user = await clerkClient.users.getUser(userId);
