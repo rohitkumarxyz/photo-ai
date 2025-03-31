@@ -1,8 +1,5 @@
 "use client";
-
 import { useAuth } from "@clerk/nextjs";
-import { BACKEND_URL } from "@/app/config";
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { ImageCard } from "./ImageCard";
 import { motion } from "framer-motion";
@@ -10,6 +7,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
 import { Download, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
+import { useRequestStore } from "@/store/useRequestStore";
+import { getImage, getOldImages } from "../services/image.service";
 
 export interface TImage {
   id: string;
@@ -23,14 +22,18 @@ export interface TImage {
   updatedAt: string;
 }
 
+export interface CameraProps {
+  requestIds: string[];
+}
+
 export function Camera() {
+  const { requestIds, removeRequestId } = useRequestStore();
   const [images, setImages] = useState<TImage[]>([]);
-  const [imagesLoading, setImagesLoading] = useState(true);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<TImage | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const { getToken } = useAuth();
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
       year: "numeric",
@@ -41,13 +44,19 @@ export function Camera() {
     });
   };
 
-  const fetchImages = async () => {
+
+  const fetchImages = async (requestId: string) => {
     try {
-      const token = await getToken();
-      const response = await axios.get(`${BACKEND_URL}/image/bulk`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setImages(response.data.images);
+      setImagesLoading(true);
+      const token: string | null = await getToken();
+      if (!token) return;
+      const response = await getImage(token, requestId);
+      if (response.data.images) {
+        setImages(prev => [...prev, response.data.images]);
+        removeRequestId(requestId);
+      } else if (response.status === 404) {
+        removeRequestId(requestId);
+      }
       setImagesLoading(false);
     } catch (error) {
       console.error("Failed to fetch images:", error);
@@ -55,9 +64,33 @@ export function Camera() {
     }
   };
 
+
+  const fetchOldImages = async () => {
+    const token: string | null = await getToken();
+    if (!token) return;
+    const response = await getOldImages(token);
+    setImages(response.images);
+  };
+
+
   useEffect(() => {
-    fetchImages();
+    fetchOldImages();
   }, []);
+
+  useEffect(() => {
+    if (!requestIds) {
+      return;
+    }
+    const pollInterval = setInterval(() => {
+      requestIds?.forEach((requestId: string) => {
+        fetchImages(requestId);
+      });
+    }, 10000);
+    requestIds?.forEach((requestId: string) => {
+      fetchImages(requestId);
+    });
+    return () => clearInterval(pollInterval);
+  }, [requestIds]);
 
   const handleImageClick = (image: TImage, index: number) => {
     setSelectedImage(image);
@@ -95,6 +128,8 @@ export function Camera() {
     }
   };
 
+
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -112,31 +147,31 @@ export function Camera() {
       >
         {imagesLoading
           ? [...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="bg-neutral-300 h-48 rounded-lg animate-pulse"
-              />
-            ))
+            <motion.div
+              key={i}
+              className="bg-neutral-300 h-48 rounded-lg animate-pulse"
+            />
+          ))
           : images.map((image, index) => (
-              <div
-                key={image.id +index}
-                className="cursor-pointer transition-transform mb-4 hover:scale-[1.02]"
+            <div
+              key={image.id + index}
+              className="cursor-pointer transition-transform mb-4 hover:scale-[1.02]"
+              onClick={() => handleImageClick(image, index)}
+            >
+              <ImageCard
+                id={image.id}
+                status={image.status}
+                imageUrl={image.imageUrl}
                 onClick={() => handleImageClick(image, index)}
-              >
-                <ImageCard
-                  id={image.id}
-                  status={image.status}
-                  imageUrl={image.imageUrl}
-                  onClick={() => handleImageClick(image, index)}
-                  modelId={image.modelId}
-                  userId={image.userId}
-                  prompt={image.prompt}
-                  falAiRequestId={image.falAiRequestId}
-                  createdAt={image.createdAt}
-                  updatedAt={image.updatedAt}
-                />
-              </div>
-            ))}
+                modelId={image.modelId}
+                userId={image.userId}
+                prompt={image.prompt}
+                falAiRequestId={image.falAiRequestId}
+                createdAt={image.createdAt}
+                updatedAt={image.updatedAt}
+              />
+            </div>
+          ))}
       </motion.div>
 
       {!imagesLoading && images.length === 0 && (

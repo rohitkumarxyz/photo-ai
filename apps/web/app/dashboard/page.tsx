@@ -50,7 +50,7 @@ export default async function DashboardPage() {
               value="camera"
               className="mt-0 focus-visible:outline-none"
             >
-              <Camera />
+              <Camera  />
             </TabsContent>
             <TabsContent
               value="generate"

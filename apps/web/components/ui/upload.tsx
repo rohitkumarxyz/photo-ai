@@ -1,7 +1,4 @@
 "use client";
-
-import JSZip from "jszip";
-import axios from "axios";
 import { useState, useCallback } from "react";
 import {
   Card,
@@ -12,7 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BACKEND_URL, CLOUDFLARE_URL } from "@/app/config";
 import { cn } from "@/lib/utils";
 
 export function UploadModal({

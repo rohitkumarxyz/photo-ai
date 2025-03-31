@@ -14,11 +14,13 @@ import { useCredits } from "@/hooks/use-credits";
 import { useRouter } from "next/navigation";
 import CustomLabel from "./ui/customLabel";
 import { GlowEffect } from "./GlowEffect";
+import { useRequestStore } from "@/store/useRequestStore";
 
 export function GenerateImage() {
   const [prompt, setPrompt] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>();
   const [isGenerating, setIsGenerating] = useState(false);
+  const { addRequestId } = useRequestStore();
   const { getToken } = useAuth();
   const { credits } = useCredits();
   const router = useRouter();
@@ -34,7 +36,7 @@ export function GenerateImage() {
     setIsGenerating(true);
     try {
       const token = await getToken();
-      await axios.post(
+      const response = await axios.post(
         `${BACKEND_URL}/ai/generate`,
         {
           prompt,
@@ -45,6 +47,8 @@ export function GenerateImage() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
+      addRequestId(response.data.requestId);
       toast.success("Image generation started!");
       setPrompt("");
     } catch (error) {

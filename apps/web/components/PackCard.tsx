@@ -20,6 +20,7 @@ import {
   CarouselPrevious,
 } from "./ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
+import { useRequestStore } from "@/store/useRequestStore";
 
 export interface TPack {
   id: string;
@@ -38,7 +39,7 @@ export function PackCard(props: TPack & { selectedModelId: string }) {
   const { getToken } = useAuth();
   const { credits } = useCredits();
   const router = useRouter();
-
+  const { requestIds, setRequestIds } = useRequestStore();
   // Collect all image URLs into an array
   const images = [
     props.imageUrl1,
@@ -66,7 +67,7 @@ export function PackCard(props: TPack & { selectedModelId: string }) {
 
   const generatePack = async () => {
     const token = await getToken();
-    await axios.post(
+    const response = await axios.post(
       `${BACKEND_URL}/pack/generate`,
       {
         packId: props.id,
@@ -78,6 +79,8 @@ export function PackCard(props: TPack & { selectedModelId: string }) {
         },
       }
     );
+    setRequestIds([...(requestIds || []), response.data.requestId]);
+    toast.success("Pack generation started!");
   };
 
   return (
